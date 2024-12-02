@@ -1,7 +1,10 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.extensions.intellijPlatform
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.25"
-    id("org.jetbrains.intellij") version "1.17.4"
+    id("org.jetbrains.intellij.platform") version "2.1.0"
 }
 
 group = "dev.notro"
@@ -9,15 +12,32 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+
+    intellijPlatform {
+        defaultRepositories()
+    }
+
+    // IntelliJ Platform testing for other IDEs
+    // Should consider read it in the future
+    // https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-testing-extension.html
 }
 
-// Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
-intellij {
-    version.set("2023.2.8")
-    type.set("IC") // Target IDE Platform
+dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
 
-    plugins.set(listOf(/* Plugin Dependencies */))
+    intellijPlatform {
+        val version = providers.gradleProperty("platformVersion")
+        val type = providers.gradleProperty("platformType")
+        create(type, version)
+
+        bundledPlugin("com.intellij.java")
+
+        pluginVerifier()
+        zipSigner()
+        instrumentationTools()
+
+        testFramework(TestFrameworkType.Platform)
+    }
 }
 
 tasks {
@@ -43,5 +63,9 @@ tasks {
 
     publishPlugin {
         token.set(System.getenv("PUBLISH_TOKEN"))
+    }
+
+    test { // still not sure if we need it
+        useJUnitPlatform()
     }
 }
