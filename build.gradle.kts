@@ -31,6 +31,7 @@ dependencies {
         create(type, version)
 
         bundledPlugin("com.intellij.java")
+        bundledPlugin("Git4Idea")
 
         pluginVerifier()
         zipSigner()
