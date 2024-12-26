@@ -97,26 +97,6 @@ class OpenIssueAction : AnAction() {
             Messages.showErrorDialog(project, "${response.message} ${response.code}", IDE_ISSUER_TITLE)
     }
 
-    private fun getProjectId(project: Project): String {
-        val url = "https://gitlab.com/api/v4/projects/${project.name}"
-
-        val request: Request = Request.Builder()
-            .url(url)
-            .get()
-            .header("PRIVATE-TOKEN", "glpat-rJ4318uxDkcfnPFD8kqs")
-            .build()
-
-        val okHttpClient = OkHttpClient()
-
-        val response = try {
-            okHttpClient.newCall(request).execute()
-        } catch (e: Exception) {
-            throw RuntimeException("Error occurred while trying to open an issue.", e)
-        }
-
-        return response.body!!.string()
-    }
-
     override fun update(event: AnActionEvent) {
         event.presentation.isEnabledAndVisible = false
 
