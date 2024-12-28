@@ -8,15 +8,15 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.TextRange
+import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-
-private const val IDE_ISSUER_TITLE = "IDE-Issuer"
-
-private const val ISSUE_TITLE_MAX_LENGTH = 255
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.swing.SwingUtilities
 
 private val JSON = "application/json".toMediaType()
 
@@ -25,49 +25,15 @@ class OpenIssueAction : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
 
-        var title: String? = Messages.showInputDialog(project, "Enter issue title: ", IDE_ISSUER_TITLE, Messages.getQuestionIcon())
-        var attempts = 0
-
-        if (title == null) // if he clicked cancel
-            return
-
-        var titleSize: Int? = title.length
-
-        val invalidLength = titleSize!! > ISSUE_TITLE_MAX_LENGTH
-        while (title!!.isEmpty() || invalidLength && attempts < 4) {
-            title = Messages.showInputDialog(project, "Enter issue title: ", IDE_ISSUER_TITLE, Messages.getQuestionIcon())
-            titleSize = title?.length
-
-            if (invalidLength)
-                Messages.showErrorDialog(project, "Title is too long! $titleSize", IDE_ISSUER_TITLE)
-
-            attempts++
-        }
-
-        if (title.isEmpty() || invalidLength) {
-            Messages.showErrorDialog(project, "Too many attempts to open an issue. Try again later.", IDE_ISSUER_TITLE)
-            return
-        }
-
-        val description = Messages.showInputDialog(project, "Enter description: ", IDE_ISSUER_TITLE, Messages.getQuestionIcon()) ?: return
-
-        val projectId = Messages.showInputDialog(project, "Enter project Id:  ", IDE_ISSUER_TITLE, Messages.getQuestionIcon()) ?: return
-        if (projectId.isEmpty()) {
-            Messages.showErrorDialog(project, "Project Id cannot be empty.", IDE_ISSUER_TITLE)
-            return
-        }
-
-        val accessToken = Messages.showInputDialog(project, "Enter Access token: ", IDE_ISSUER_TITLE, Messages.getQuestionIcon()) ?: return
-        if (accessToken.isEmpty()) {
-            Messages.showErrorDialog(project, "Access token Id cannot be empty.", IDE_ISSUER_TITLE)
-            return
-        }
-
-        createIssue(project, title, description, projectId, accessToken)
+        val dialog = IssueCreationDialog(project)
+        if (dialog.chatWithUser()) // if the dialog passed successfully
+            createIssue(project, dialog.title!!, dialog.description!!, dialog.accessToken!!)
     }
 
-    private fun createIssue(project: Project, title: String, description: String, projectId: String, accessToken: String) {
-        val url = "https://gitlab.com/api/v4/projects/$projectId/issues"
+    private fun createIssue(project: Project, title: String, description: String, accessToken: String) {
+        val pathWithNameSpace = URLEncoder.encode(getPathWithNameSpace(project, accessToken), "UTF-8")
+        val url = "https:/gitlab.com/api/v4/projects/$pathWithNameSpace/issues"
+
         val json = """
         {
             "title": "$title",
@@ -84,17 +50,67 @@ class OpenIssueAction : AnAction() {
             .build()
 
         val okHttpClient = OkHttpClient()
+        val successful = AtomicBoolean(false)
 
-        val response = try {
-            okHttpClient.newCall(request).execute()
-        } catch (e: Exception) {
-            throw RuntimeException("Error occurred while trying to open an issue.", e)
+        CompletableFuture.runAsync {
+            val response = try {
+                okHttpClient.newCall(request).execute()
+            } catch (e: Exception) {
+                throw RuntimeException("Error occurred while trying to open an issue.", e)
+            }
+
+            successful.set(true)
+            response.close()
+        }.thenAccept {
+            SwingUtilities.invokeLater {
+                if (successful.get())
+                    Messages.showMessageDialog(project, "Opened issue: $title", IDE_ISSUER_TITLE, Messages.getInformationIcon())
+                else
+                    Messages.showErrorDialog(project, "Error could not open issue: $title", IDE_ISSUER_TITLE)
+            }
+        }
+    }
+
+    private fun getPathWithNameSpace(project: Project, accessToken: String): String {
+        val url = "https://gitlab.com/api/v4/projects?owned=true"
+
+        val request: Request = Request.Builder()
+            .url(url)
+            .get()
+            .header("PRIVATE-TOKEN", accessToken)
+            .build()
+
+        val okHttpClient = OkHttpClient()
+        var pathWithNameSpace = ""
+
+        val future = CompletableFuture<String>()
+
+        future.completeAsync {
+            val response = executeRequest(okHttpClient, request, future)
+
+            val projects = JSONArray(response!!.body!!.string())
+            response.close()
+
+
+            for (gitProject in projects) {
+                gitProject as JSONObject
+                if (gitProject.getString("path").equals(project.name, ignoreCase = true))
+                    pathWithNameSpace = gitProject.getString("path_with_namespace")
+            }
+
+            pathWithNameSpace
         }
 
-        if (response.isSuccessful)
-            Messages.showMessageDialog("Opened issue: $title", IDE_ISSUER_TITLE, Messages.getInformationIcon())
-        else
-            Messages.showErrorDialog(project, "${response.message} ${response.code}", IDE_ISSUER_TITLE)
+        return future.get()
+    }
+
+    private fun executeRequest(okHttpClient: OkHttpClient, request: Request, future: CompletableFuture<String>): Response? {
+        return try {
+            okHttpClient.newCall(request).execute()
+        } catch (e: Exception) {
+            future.completeExceptionally(e)
+            return null
+        }
     }
 
     override fun update(event: AnActionEvent) {
