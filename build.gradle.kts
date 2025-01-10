@@ -24,6 +24,7 @@ repositories {
 
 dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
 
     implementation(platform("com.squareup.okhttp3:okhttp-bom:4.12.0"))
 
@@ -31,7 +32,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp")
     implementation("com.squareup.okhttp3:logging-interceptor")
 
-    implementation("org.json:json:20171018")
+    implementation("org.json:json:20231013")
+
+//    implementation("org.jetbrains.plugins.github:github-core:1.0.0")
+//    implementation("org.jetbrains.plugins.gitlab:gitlab-core:1.0.0")
 
     intellijPlatform {
         val version = providers.gradleProperty("platformVersion")
@@ -39,6 +43,8 @@ dependencies {
         create(type, version)
 
         bundledPlugin("com.intellij.java")
+        bundledPlugin("org.jetbrains.plugins.github")
+        bundledPlugin("org.jetbrains.plugins.gitlab")
         bundledPlugin("Git4Idea")
 
         pluginVerifier()
@@ -47,6 +53,7 @@ dependencies {
 
         testFramework(TestFrameworkType.Platform)
     }
+    testImplementation(kotlin("test"))
 }
 
 tasks {
@@ -74,7 +81,7 @@ tasks {
         token.set(System.getenv("PUBLISH_TOKEN"))
     }
 
-    test { // still not sure if we need it
+    test {
         useJUnitPlatform()
     }
 }

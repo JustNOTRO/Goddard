@@ -21,6 +21,9 @@
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.kotlin</depends>
+    <depends>org.jetbrains.plugins.github</depends>
+    <depends>org.jetbrains.plugins.gitlab</depends>
     <depends>Git4Idea</depends>
 
     <!-- Extension points defined by the plugin.
@@ -30,7 +33,7 @@
 
 
     <actions>
-        <action id="dev.notro.ideissuer.OpenIssueAction" class="dev.notro.ideissuer.OpenIssueAction" text="Open Issue"
+        <action id="dev.notro.ideissuer.actions.OpenIssueAction" class="dev.notro.ideissuer.actions.OpenIssueAction" text="Open Issue"
                 description="Open issue in Github/Gitlab">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
